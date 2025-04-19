@@ -45,36 +45,65 @@ def save_statistics(stats):
         return
     
     try:
-        # データ保存用のディレクトリを作成
-        data_dir = 'data'
+        # 絶対パスを使用してデータディレクトリを作成
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(current_dir, 'data')
+        
+        print(f"Debug - Current directory: {current_dir}")
+        print(f"Debug - Data directory path: {data_dir}")
+        
+        # データディレクトリが存在しない場合は作成を試みる
         if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
-            print(f"Debug - Created data directory: {data_dir}")
+            try:
+                os.makedirs(data_dir, mode=0o777, exist_ok=True)
+                print(f"Debug - Created data directory: {data_dir}")
+            except Exception as e:
+                print(f"Error creating data directory: {e}")
+                # /tmpディレクトリを代替として使用
+                data_dir = '/tmp'
+                print(f"Debug - Using alternative directory: {data_dir}")
         
         reading_type = stats.pop('type')  # Remove type from stats before saving
         filename = os.path.join(data_dir, f'{reading_type}_stats.csv')
         file_exists = os.path.exists(filename)
         
-        print(f"Debug - Saving stats to {filename}:")
+        print(f"Debug - Attempting to save stats to {filename}:")
         print(stats)
         
-        # ディレクトリのパーミッションを確認
-        os.chmod(data_dir, 0o777)
-        
-        with open(filename, 'a', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
-            if not file_exists:
-                writer.writeheader()
-                print(f"Debug - Created new file with headers: {filename}")
-            writer.writerow(stats)
-            print(f"Debug - Successfully wrote stats to {filename}")
+        try:
+            # ファイルを作成/追記モードでオープン
+            with open(filename, 'a', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
+                if not file_exists:
+                    writer.writeheader()
+                    print(f"Debug - Created new file with headers: {filename}")
+                writer.writerow(stats)
+                print(f"Debug - Successfully wrote stats to {filename}")
             
-        # ファイルのパーミッションも設定
-        os.chmod(filename, 0o666)
+            # ファイルのパーミッションを設定
+            try:
+                os.chmod(filename, 0o666)
+                print(f"Debug - Set permissions for {filename}")
+            except Exception as e:
+                print(f"Warning - Could not set file permissions: {e}")
+                
+        except IOError as e:
+            print(f"Error writing to file {filename}: {e}")
+            # 代替として/tmpディレクトリに保存を試みる
+            alt_filename = os.path.join('/tmp', f'{reading_type}_stats.csv')
+            print(f"Debug - Attempting to write to alternative location: {alt_filename}")
+            with open(alt_filename, 'a', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
+                if not os.path.exists(alt_filename):
+                    writer.writeheader()
+                writer.writerow(stats)
+                print(f"Debug - Successfully wrote stats to alternative location: {alt_filename}")
             
     except Exception as e:
-        print(f"Error saving statistics: {e}")
+        print(f"Critical error in save_statistics: {e}")
         print(f"Debug - Stats object: {stats}")
+        import traceback
+        print(f"Debug - Traceback: {traceback.format_exc()}")
 
 def parse_timestamp(timestamp_str):
     """ISO形式のタイムスタンプ文字列をdatetimeオブジェクトに変換"""
@@ -337,10 +366,19 @@ def read_stats_file(filename, limit=60):
     CSVファイルから統計データを読み込む
     limit: 返す最大レコード数（デフォルト1時間分）
     """
-    filepath = os.path.join('data', filename)
+    # まず、アプリケーションディレクトリ内のdataフォルダを確認
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(current_dir, 'data', filename)
+    
+    # dataフォルダ内にファイルが存在しない場合は、/tmpディレクトリを確認
     if not os.path.exists(filepath):
-        print(f"Debug - File does not exist: {filepath}")
-        return [], []
+        filepath = os.path.join('/tmp', filename)
+        if not os.path.exists(filepath):
+            print(f"Debug - File does not exist in either location: {filepath}")
+            return [], []
+        print(f"Debug - Using file from /tmp directory: {filepath}")
+    else:
+        print(f"Debug - Using file from data directory: {filepath}")
         
     timestamps = []
     stats = []
