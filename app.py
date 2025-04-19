@@ -14,12 +14,12 @@ sensor_data_queue = queue.Queue(maxsize=100)
 minute_data = []  # 1分間のデータを保持
 minute_data_lock = Lock()  # スレッドセーフな操作のためのロック
 
-def calculate_statistics(data_list):
+def calculate_statistics(data_list, reading_type):
     if not data_list:
         return None
     
     values = [reading['value'] for item in data_list for reading in item['readings'] 
-             if reading['type'] == 'temperature']
+             if reading['type'] == reading_type]
     
     if not values:
         return None
@@ -30,14 +30,16 @@ def calculate_statistics(data_list):
         'maximum': max(values),
         'minimum': min(values),
         'first': values[0],
-        'last': values[-1]
+        'last': values[-1],
+        'type': reading_type
     }
 
 def save_statistics(stats):
     if not stats:
         return
     
-    filename = 'temperature_stats.csv'
+    reading_type = stats.pop('type')  # Remove type from stats before saving
+    filename = f'{reading_type}_stats.csv'
     file_exists = os.path.exists(filename)
     
     with open(filename, 'a', newline='') as f:
@@ -46,43 +48,86 @@ def save_statistics(stats):
             writer.writeheader()
         writer.writerow(stats)
 
+def check_and_save_minute_data():
+    global minute_data
+    current_time = datetime.now()
+    
+    # 現在の分が変わった場合、前の分のデータを処理
+    if minute_data and datetime.fromtimestamp(minute_data[0]['timestamp']).minute != current_time.minute:
+        with minute_data_lock:
+            # 温度の統計を計算・保存
+            temp_stats = calculate_statistics(minute_data, 'temperature')
+            if temp_stats:
+                save_statistics(temp_stats)
+            
+            # CO2の統計を計算・保存
+            co2_stats = calculate_statistics(minute_data, 'co2')
+            if co2_stats:
+                save_statistics(co2_stats)
+            
+            minute_data = []  # データをリセット
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>Sensor Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container {
+            width: 800px;
+            margin: 20px auto;
+        }
+    </style>
 </head>
 <body>
-    <h2>Live Temperature Data</h2>
-    <canvas id="tempChart" width="800" height="400"></canvas>
+    <div class="chart-container">
+        <h2>Live Temperature Data</h2>
+        <canvas id="tempChart" width="800" height="400"></canvas>
+    </div>
+    <div class="chart-container">
+        <h2>Live CO2 Data</h2>
+        <canvas id="co2Chart" width="800" height="400"></canvas>
+    </div>
     <script>
-        const ctx = document.getElementById('tempChart').getContext('2d');
-        const chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Temperature (°C)',
-                    data: [],
-                    borderColor: 'blue',
-                    fill: false
-                }]
-            },
-            options: {
-                scales: {
-                    x: { display: true, title: { display: true, text: 'Timestamp' }},
-                    y: { display: true, title: { display: true, text: '°C' }}
+        function createChart(ctx, label, unit, color) {
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: color,
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { display: true, title: { display: true, text: 'Timestamp' }},
+                        y: { display: true, title: { display: true, text: unit }}
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        const tempCtx = document.getElementById('tempChart').getContext('2d');
+        const co2Ctx = document.getElementById('co2Chart').getContext('2d');
+        
+        const tempChart = createChart(tempCtx, 'Temperature (°C)', '°C', 'blue');
+        const co2Chart = createChart(co2Ctx, 'CO2 (ppm)', 'ppm', 'green');
 
         async function fetchData() {
             const res = await fetch('/data');
             const json = await res.json();
-            chart.data.labels = json.timestamps;
-            chart.data.datasets[0].data = json.temperatures;
-            chart.update();
+            
+            tempChart.data.labels = json.timestamps;
+            tempChart.data.datasets[0].data = json.temperatures;
+            tempChart.update();
+            
+            co2Chart.data.labels = json.timestamps;
+            co2Chart.data.datasets[0].data = json.co2_levels;
+            co2Chart.update();
         }
 
         setInterval(fetchData, 2000);
@@ -98,13 +143,27 @@ def index():
 @app.route('/data')
 def get_data():
     temperatures = []
+    co2_levels = []
     timestamps = []
     for item in list(sensor_data_queue.queue):
+        temp_value = None
+        co2_value = None
         for reading in item['readings']:
             if reading['type'] == 'temperature':
-                temperatures.append(reading['value'])
-                timestamps.append(item['timestamp'])
-    return jsonify({'temperatures': temperatures, 'timestamps': timestamps})
+                temp_value = reading['value']
+            elif reading['type'] == 'co2':
+                co2_value = reading['value']
+        
+        if temp_value is not None and co2_value is not None:
+            temperatures.append(temp_value)
+            co2_levels.append(co2_value)
+            timestamps.append(item['timestamp'])
+            
+    return jsonify({
+        'temperatures': temperatures,
+        'co2_levels': co2_levels,
+        'timestamps': timestamps
+    })
 
 def check_and_save_minute_data():
     global minute_data
