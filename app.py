@@ -57,7 +57,9 @@ def parse_timestamp(timestamp_str):
     """ISO形式のタイムスタンプ文字列をdatetimeオブジェクトに変換"""
     try:
         # タイムゾーン情報を含むISO形式のタイムスタンプを解析
-        return datetime.fromisoformat(timestamp_str)
+        dt = datetime.fromisoformat(timestamp_str)
+        # タイムゾーン情報を除去（ローカル時間として扱う）
+        return dt.replace(tzinfo=None)
     except ValueError as e:
         print(f"Error parsing timestamp {timestamp_str}: {e}")
         return None
@@ -147,20 +149,24 @@ HTML_TEMPLATE = """
         const tempChart = createStatChart(tempCtx, 'Temperature', '°C');
         const co2Chart = createStatChart(co2Ctx, 'CO2', 'ppm');
 
-        function drawCandlestick(ctx, x, y, width, stats, isUp) {
+        function drawCandlestick(ctx, x, scale, width, stats, isUp) {
             const color = isUp ? 'blue' : 'red';
             
             // ひげ（最小値から最大値）を描画
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = 1;
-            ctx.moveTo(x, stats.minimum);
-            ctx.lineTo(x, stats.maximum);
+            const minY = scale.getPixelForValue(stats.minimum);
+            const maxY = scale.getPixelForValue(stats.maximum);
+            ctx.moveTo(x, minY);
+            ctx.lineTo(x, maxY);
             ctx.stroke();
             
             // 箱（first-last）を描画
-            const boxY = Math.min(stats.first, stats.last);
-            const boxHeight = Math.abs(stats.last - stats.first);
+            const firstY = scale.getPixelForValue(stats.first);
+            const lastY = scale.getPixelForValue(stats.last);
+            const boxY = Math.min(firstY, lastY);
+            const boxHeight = Math.abs(firstY - lastY);
             
             ctx.fillStyle = color;
             ctx.fillRect(x - width/2, boxY, width, Math.max(boxHeight, 1));
@@ -171,13 +177,24 @@ HTML_TEMPLATE = """
                 return;
             }
 
+            // データを空の配列で初期化（これにより軸スケールが設定される）
+            chart.data.datasets[0].data = data.stats.map(stat => ({
+                y: stat.average  // 平均値を使用してスケールを設定
+            }));
             chart.data.labels = data.timestamps;
-            chart.update();
+            chart.update('none');  // アニメーションなしで更新
 
             const ctx = chart.ctx;
             const scale = chart.scales.y;
             const meta = chart.getDatasetMeta(0);
 
+            // 既存のグラフをクリア
+            ctx.save();
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, chart.width, chart.height);
+            ctx.restore();
+
+            // ローソク足を描画
             data.stats.forEach((stat, i) => {
                 const x = meta.data[i].x;
                 const width = meta.data[i].width;
