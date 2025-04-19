@@ -70,24 +70,37 @@ def check_and_save_minute_data():
     
     if not minute_data:
         return
+    
+    print("Debug - First data in minute_data:", minute_data[0])
         
     # 最初のデータのタイムスタンプを解析
     first_time = parse_timestamp(minute_data[0]['timestamp'])
     if not first_time:
+        print("Debug - Failed to parse timestamp:", minute_data[0]['timestamp'])
         return
+    
+    print("Debug - Parsed timestamp:", first_time)
+    print("Debug - Current time:", current_time)
     
     # 現在の分が変わった場合、前の分のデータを処理
     if first_time.minute != current_time.minute:
+        print("Debug - Processing data for minute:", first_time.minute)
         with minute_data_lock:
             # 温度の統計を計算・保存
             temp_stats = calculate_statistics(minute_data, 'temperature')
             if temp_stats:
+                print("Debug - Temperature stats:", temp_stats)
                 save_statistics(temp_stats)
+            else:
+                print("Debug - Failed to calculate temperature stats")
             
             # CO2の統計を計算・保存
             co2_stats = calculate_statistics(minute_data, 'co2')
             if co2_stats:
+                print("Debug - CO2 stats:", co2_stats)
                 save_statistics(co2_stats)
+            else:
+                print("Debug - Failed to calculate CO2 stats")
             
             minute_data = []  # データをリセット
 
@@ -281,40 +294,39 @@ def get_stats():
         }
     })
 
-def check_and_save_minute_data():
-    global minute_data
-    current_time = datetime.now()
-    
-    # 現在の分が変わった場合、前の分のデータを処理
-    if minute_data and datetime.fromtimestamp(minute_data[0]['timestamp']).minute != current_time.minute:
-        with minute_data_lock:
-            stats = calculate_statistics(minute_data)
-            if stats:
-                save_statistics(stats)
-            minute_data = []  # データをリセット
+# この関数は削除（上部に正しいバージョンが既にある）
 
 def mqtt_listener():
     def on_connect(client, userdata, flags, rc):
+        print("Debug - Connected to MQTT broker with result code:", rc)
         client.subscribe("home/livingroom/env/sensor1")
+        print("Debug - Subscribed to topic: home/livingroom/env/sensor1")
 
     def on_message(client, userdata, msg):
         try:
+            print("\nDebug - Received MQTT message:", msg.payload.decode())
             payload = json.loads(msg.payload.decode())
+            print("Debug - Parsed payload:", payload)
             
             # リアルタイム表示用のキュー更新
             if sensor_data_queue.full():
                 sensor_data_queue.get()
             sensor_data_queue.put(payload)
+            print("Debug - Added to sensor_data_queue")
             
             # 1分間の統計データ用の処理
             with minute_data_lock:
                 minute_data.append(payload)
+                print("Debug - Added to minute_data, current size:", len(minute_data))
             
             # 毎分の統計処理
             check_and_save_minute_data()
             
+        except json.JSONDecodeError as e:
+            print("Debug - JSON decode error:", e)
         except Exception as e:
-            print("Error:", e)
+            print("Debug - Unexpected error:", e)
+            print("Debug - Error type:", type(e))
 
     client = mqtt.Client()
     client.on_connect = on_connect
