@@ -45,24 +45,8 @@ def save_statistics(stats):
         return
     
     try:
-        # 絶対パスを使用してデータディレクトリを作成
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(current_dir, 'data')
-        
-        print(f"Debug - Current directory: {current_dir}")
-        print(f"Debug - Data directory path: {data_dir}")
-        
-        # データディレクトリが存在しない場合は作成を試みる
-        if not os.path.exists(data_dir):
-            try:
-                os.makedirs(data_dir, mode=0o777, exist_ok=True)
-                print(f"Debug - Created data directory: {data_dir}")
-            except Exception as e:
-                print(f"Error creating data directory: {e}")
-                # /tmpディレクトリを代替として使用
-                data_dir = '/tmp'
-                print(f"Debug - Using alternative directory: {data_dir}")
-        
+        # 直接/tmpディレクトリを使用
+        data_dir = '/tmp'
         reading_type = stats.pop('type')  # Remove type from stats before saving
         filename = os.path.join(data_dir, f'{reading_type}_stats.csv')
         file_exists = os.path.exists(filename)
@@ -366,19 +350,12 @@ def read_stats_file(filename, limit=60):
     CSVファイルから統計データを読み込む
     limit: 返す最大レコード数（デフォルト1時間分）
     """
-    # まず、アプリケーションディレクトリ内のdataフォルダを確認
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    filepath = os.path.join(current_dir, 'data', filename)
-    
-    # dataフォルダ内にファイルが存在しない場合は、/tmpディレクトリを確認
+    # 直接/tmpディレクトリを使用
+    filepath = os.path.join('/tmp', filename)
     if not os.path.exists(filepath):
-        filepath = os.path.join('/tmp', filename)
-        if not os.path.exists(filepath):
-            print(f"Debug - File does not exist in either location: {filepath}")
-            return [], []
-        print(f"Debug - Using file from /tmp directory: {filepath}")
-    else:
-        print(f"Debug - Using file from data directory: {filepath}")
+        print(f"Debug - File does not exist: {filepath}")
+        return [], []
+    print(f"Debug - Reading from file: {filepath}")
         
     timestamps = []
     stats = []
