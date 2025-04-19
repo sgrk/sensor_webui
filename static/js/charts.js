@@ -1,4 +1,4 @@
-t// Initialize charts
+// Initialize charts
 function createStatChart(ctx, label, unit) {
     return new Chart(ctx, {
         type: 'bar',

@@ -82,9 +82,6 @@ def save_to_csv(filename, data, fieldnames):
         return False
 
 def read_csv_data(filename, limit=None):
-    # Use config value if limit is not specified
-    if limit is None:
-        limit = config.STATS_LIMIT
     """
     Read data from a CSV file
     
@@ -96,6 +93,9 @@ def read_csv_data(filename, limit=None):
         tuple: (timestamps, data) where timestamps is a list of formatted timestamps
                and data is a list of dictionaries containing the data
     """
+    # Use config value if limit is not specified
+    if limit is None:
+        limit = config.STATS_LIMIT
     data_dir = ensure_data_directory()
     filepath = os.path.join(data_dir, filename)
     

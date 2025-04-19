@@ -157,9 +157,6 @@ def check_and_save_minute_data():
     return False
 
 def get_statistics(reading_type, limit=None):
-    # Use config value if limit is not specified
-    if limit is None:
-        limit = config.STATS_LIMIT
     """
     Get statistics for a specific reading type
     
@@ -171,5 +168,8 @@ def get_statistics(reading_type, limit=None):
         tuple: (timestamps, stats) where timestamps is a list of formatted timestamps
                and stats is a list of dictionaries containing the statistics
     """
+    # Use config value if limit is not specified
+    if limit is None:
+        limit = config.STATS_LIMIT
     filename = f'{reading_type}_stats.csv'
     return utils.read_csv_data(filename, limit)
