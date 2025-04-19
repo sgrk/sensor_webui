@@ -72,26 +72,9 @@ def save_statistics(stats):
                 writer.writerow(stats)
                 print(f"Debug - Successfully wrote stats to {filename}")
             
-            # ファイルのパーミッションを設定
-            try:
-                os.chmod(filename, 0o666)
-                print(f"Debug - Set permissions for {filename}")
-            except Exception as e:
-                print(f"Warning - Could not set file permissions: {e}")
                 
         except IOError as e:
             print(f"Error writing to file {filename}: {e}")
-            # 代替として一時ディレクトリに保存を試みる
-            import tempfile
-            temp_dir = tempfile.gettempdir()
-            alt_filename = os.path.join(temp_dir, f'{reading_type}_stats.csv')
-            print(f"Debug - Attempting to write to alternative location: {alt_filename}")
-            with open(alt_filename, 'a', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
-                if not os.path.exists(alt_filename):
-                    writer.writeheader()
-                writer.writerow(stats)
-                print(f"Debug - Successfully wrote stats to alternative location: {alt_filename}")
             
     except Exception as e:
         print(f"Critical error in save_statistics: {e}")
