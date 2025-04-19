@@ -45,8 +45,12 @@ def save_statistics(stats):
         return
     
     try:
-        # 直接/tmpディレクトリを使用
-        data_dir = '/tmp'
+        # ./dataディレクトリを使用
+        data_dir = './data'
+        # ディレクトリが存在しない場合は作成
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            print(f"Debug - Created directory: {data_dir}")
         reading_type = stats.pop('type')  # Remove type from stats before saving
         filename = os.path.join(data_dir, f'{reading_type}_stats.csv')
         file_exists = os.path.exists(filename)
@@ -73,8 +77,8 @@ def save_statistics(stats):
                 
         except IOError as e:
             print(f"Error writing to file {filename}: {e}")
-            # 代替として/tmpディレクトリに保存を試みる
-            alt_filename = os.path.join('/tmp', f'{reading_type}_stats.csv')
+            # 代替として./dataディレクトリに保存を試みる
+            alt_filename = os.path.join('./data', f'{reading_type}_stats.csv')
             print(f"Debug - Attempting to write to alternative location: {alt_filename}")
             with open(alt_filename, 'a', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
@@ -350,8 +354,8 @@ def read_stats_file(filename, limit=60):
     CSVファイルから統計データを読み込む
     limit: 返す最大レコード数（デフォルト1時間分）
     """
-    # 直接/tmpディレクトリを使用
-    filepath = os.path.join('/tmp', filename)
+    # ./dataディレクトリを使用
+    filepath = os.path.join('./data', filename)
     if not os.path.exists(filepath):
         print(f"Debug - File does not exist: {filepath}")
         return [], []
