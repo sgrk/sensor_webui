@@ -153,14 +153,44 @@ HTML_TEMPLATE = """
                 },
                 options: {
                     responsive: true,
+                    animation: false,
                     scales: {
                         x: { 
                             display: true,
-                            title: { display: true, text: 'Time' }
+                            title: { display: true, text: 'Time' },
+                            grid: {
+                                display: true,
+                                color: 'rgba(0,0,0,0.1)'
+                            }
                         },
                         y: { 
                             display: true,
-                            title: { display: true, text: unit }
+                            title: { display: true, text: unit },
+                            grid: {
+                                display: true,
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const stat = context.raw;
+                                    return [
+                                        `First: ${stat.first} ${unit}`,
+                                        `Last: ${stat.last} ${unit}`,
+                                        `Min: ${stat.minimum} ${unit}`,
+                                        `Max: ${stat.maximum} ${unit}`,
+                                        `Avg: ${stat.y} ${unit}`
+                                    ];
+                                }
+                            }
                         }
                     }
                 }
@@ -173,58 +203,97 @@ HTML_TEMPLATE = """
         const tempChart = createStatChart(tempCtx, 'Temperature', '°C');
         const co2Chart = createStatChart(co2Ctx, 'CO2', 'ppm');
 
-        function drawCandlestick(ctx, x, scale, width, stats, isUp) {
-            const color = isUp ? 'blue' : 'red';
+        function createCandlestickDataset(data) {
+            if (!data || !data.stats) return null;
             
-            // ひげ（最小値から最大値）を描画
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1;
-            const minY = scale.getPixelForValue(stats.minimum);
-            const maxY = scale.getPixelForValue(stats.maximum);
-            ctx.moveTo(x, minY);
-            ctx.lineTo(x, maxY);
-            ctx.stroke();
-            
-            // 箱（first-last）を描画
-            const firstY = scale.getPixelForValue(stats.first);
-            const lastY = scale.getPixelForValue(stats.last);
-            const boxY = Math.min(firstY, lastY);
-            const boxHeight = Math.abs(firstY - lastY);
-            
-            ctx.fillStyle = color;
-            ctx.fillRect(x - width/2, boxY, width, Math.max(boxHeight, 1));
+            return {
+                label: 'Statistics',
+                data: data.stats.map(stat => ({
+                    x: null,  // Will be set by Chart.js
+                    o: stat.first,    // open
+                    h: stat.maximum,   // high
+                    l: stat.minimum,   // low
+                    c: stat.last,      // close
+                })),
+                color: {
+                    up: 'blue',
+                    down: 'red',
+                },
+                borderWidth: 2,
+                type: 'candlestick'
+            };
         }
 
         function updateChart(chart, data) {
             if (!data || !data.timestamps || !data.stats || data.timestamps.length === 0) {
+                console.log("No data to display");
                 return;
             }
 
-            // データを空の配列で初期化（これにより軸スケールが設定される）
-            chart.data.datasets[0].data = data.stats.map(stat => ({
-                y: stat.average  // 平均値を使用してスケールを設定
-            }));
+            console.log("Updating chart with data:", data);
+
+            // Y軸の範囲を計算
+            const allValues = data.stats.reduce((acc, stat) => {
+                acc.push(stat.minimum, stat.maximum, stat.first, stat.last);
+                return acc;
+            }, []);
+            const minValue = Math.min(...allValues);
+            const maxValue = Math.max(...allValues);
+            const padding = (maxValue - minValue) * 0.1;
+
+            // チャートの更新
             chart.data.labels = data.timestamps;
-            chart.update('none');  // アニメーションなしで更新
+            chart.data.datasets = [{
+                label: chart.canvas.id === 'tempChart' ? 'Temperature' : 'CO2',
+                data: data.stats.map((stat, i) => ({
+                    x: i,
+                    y: stat.average,
+                    minimum: stat.minimum,
+                    maximum: stat.maximum,
+                    first: stat.first,
+                    last: stat.last
+                })),
+                borderColor: 'rgba(0,0,0,0)',
+                backgroundColor: 'rgba(0,0,0,0)'
+            }];
 
+            chart.options.scales.y.min = minValue - padding;
+            chart.options.scales.y.max = maxValue + padding;
+
+            // アニメーションなしで更新
+            chart.update('none');
+
+            // カスタム描画
             const ctx = chart.ctx;
-            const scale = chart.scales.y;
-            const meta = chart.getDatasetMeta(0);
+            const yScale = chart.scales.y;
+            const xScale = chart.scales.x;
 
-            // 既存のグラフをクリア
-            ctx.save();
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, chart.width, chart.height);
-            ctx.restore();
-
-            // ローソク足を描画
             data.stats.forEach((stat, i) => {
-                const x = meta.data[i].x;
-                const width = meta.data[i].width;
-                const isUp = stat.first <= stat.last;
-                drawCandlestick(ctx, x, scale, width, stat, isUp);
+                const x = xScale.getPixelForValue(i);
+                const width = xScale.getPixelForValue(1) - xScale.getPixelForValue(0);
+                const candleWidth = Math.min(width * 0.8, 15);  // キャンドルの幅を制限
+
+                // 上昇/下落の色を決定
+                const color = stat.first <= stat.last ? 'blue' : 'red';
+
+                // ひげを描画（最小値から最大値）
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.moveTo(x, yScale.getPixelForValue(stat.minimum));
+                ctx.lineTo(x, yScale.getPixelForValue(stat.maximum));
+                ctx.stroke();
+
+                // 箱を描画（始値から終値）
+                const firstY = yScale.getPixelForValue(stat.first);
+                const lastY = yScale.getPixelForValue(stat.last);
+                const boxTop = Math.min(firstY, lastY);
+                const boxHeight = Math.abs(firstY - lastY) || 1;
+
+                ctx.fillStyle = color;
+                ctx.fillRect(x - candleWidth/2, boxTop, candleWidth, boxHeight);
             });
+        }
         }
 
         async function fetchData() {
