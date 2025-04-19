@@ -447,8 +447,9 @@ def mqtt_listener():
             with minute_data_lock:
                 minute_data.append(payload)
                 print("Debug - Added to minute_data, current size:", len(minute_data))
-                # 毎分の統計処理をロック内で実行
-                check_and_save_minute_data()
+            
+            # ロックの外で毎分の統計処理を実行
+            check_and_save_minute_data()
             
         except json.JSONDecodeError as e:
             print("Debug - JSON decode error:", e)
