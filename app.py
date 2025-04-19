@@ -24,8 +24,13 @@ def calculate_statistics(data_list, reading_type):
     if not values:
         return None
 
+    # 最後のデータのタイムスタンプを解析
+    last_time = parse_timestamp(data_list[-1]['timestamp'])
+    if not last_time:
+        return None
+
     return {
-        'timestamp': datetime.fromtimestamp(data_list[-1]['timestamp']).strftime('%Y-%m-%d %H:%M:00'),
+        'timestamp': last_time.strftime('%Y-%m-%d %H:%M:00'),
         'average': statistics.mean(values),
         'maximum': max(values),
         'minimum': min(values),
@@ -48,12 +53,29 @@ def save_statistics(stats):
             writer.writeheader()
         writer.writerow(stats)
 
+def parse_timestamp(timestamp_str):
+    """ISO形式のタイムスタンプ文字列をdatetimeオブジェクトに変換"""
+    try:
+        # タイムゾーン情報を含むISO形式のタイムスタンプを解析
+        return datetime.fromisoformat(timestamp_str)
+    except ValueError as e:
+        print(f"Error parsing timestamp {timestamp_str}: {e}")
+        return None
+
 def check_and_save_minute_data():
     global minute_data
     current_time = datetime.now()
     
+    if not minute_data:
+        return
+        
+    # 最初のデータのタイムスタンプを解析
+    first_time = parse_timestamp(minute_data[0]['timestamp'])
+    if not first_time:
+        return
+    
     # 現在の分が変わった場合、前の分のデータを処理
-    if minute_data and datetime.fromtimestamp(minute_data[0]['timestamp']).minute != current_time.minute:
+    if first_time.minute != current_time.minute:
         with minute_data_lock:
             # 温度の統計を計算・保存
             temp_stats = calculate_statistics(minute_data, 'temperature')
