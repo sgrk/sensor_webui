@@ -41,17 +41,28 @@ def calculate_statistics(data_list, reading_type):
 
 def save_statistics(stats):
     if not stats:
+        print("Debug - No stats to save")
         return
     
-    reading_type = stats.pop('type')  # Remove type from stats before saving
-    filename = f'{reading_type}_stats.csv'
-    file_exists = os.path.exists(filename)
-    
-    with open(filename, 'a', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(stats)
+    try:
+        reading_type = stats.pop('type')  # Remove type from stats before saving
+        filename = f'{reading_type}_stats.csv'
+        file_exists = os.path.exists(filename)
+        
+        print(f"Debug - Saving stats to {filename}:")
+        print(stats)
+        
+        with open(filename, 'a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
+            if not file_exists:
+                writer.writeheader()
+                print(f"Debug - Created new file with headers: {filename}")
+            writer.writerow(stats)
+            print(f"Debug - Successfully wrote stats to {filename}")
+            
+    except Exception as e:
+        print(f"Error saving statistics: {e}")
+        print(f"Debug - Stats object: {stats}")
 
 def parse_timestamp(timestamp_str):
     """ISO形式のタイムスタンプ文字列をdatetimeオブジェクトに変換"""
@@ -247,6 +258,7 @@ def read_stats_file(filename, limit=60):
     limit: 返す最大レコード数（デフォルト1時間分）
     """
     if not os.path.exists(filename):
+        print(f"Debug - File does not exist: {filename}")
         return [], []
         
     timestamps = []
@@ -254,25 +266,54 @@ def read_stats_file(filename, limit=60):
     
     try:
         with open(filename, 'r', newline='') as f:
+            # ファイルの内容を確認
+            content = f.read()
+            print(f"Debug - File content of {filename}:")
+            print(content)
+            
+            # ファイルポインタを先頭に戻す
+            f.seek(0)
+            
+            # ヘッダーを確認
+            first_line = f.readline().strip()
+            print(f"Debug - First line (header): {first_line}")
+            
+            # ファイルポインタを先頭に戻す
+            f.seek(0)
+            
             reader = csv.DictReader(f)
-            rows = list(reader)[-limit:]  # 最新のN件を取得
+            print(f"Debug - CSV headers: {reader.fieldnames}")
+            
+            # 全ての行を読み込む
+            all_rows = list(reader)
+            print(f"Debug - Total rows read: {len(all_rows)}")
+            
+            # 最新のN件を取得
+            rows = all_rows[-limit:] if len(all_rows) > limit else all_rows
             
             for row in rows:
-                # タイムスタンプを時:分の形式に変換
-                dt = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S')
-                timestamps.append(dt.strftime('%H:%M'))
+                try:
+                    # タイムスタンプを時:分の形式に変換
+                    dt = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:00')
+                    timestamps.append(dt.strftime('%H:%M'))
+                    
+                    stats.append({
+                        'minimum': float(row['minimum']),
+                        'maximum': float(row['maximum']),
+                        'first': float(row['first']),
+                        'last': float(row['last']),
+                        'average': float(row['average'])
+                    })
+                except Exception as e:
+                    print(f"Debug - Error processing row: {row}")
+                    print(f"Debug - Error details: {e}")
+                    continue
                 
-                stats.append({
-                    'minimum': float(row['minimum']),
-                    'maximum': float(row['maximum']),
-                    'first': float(row['first']),
-                    'last': float(row['last']),
-                    'average': float(row['average'])
-                })
     except Exception as e:
         print(f"Error reading stats file {filename}: {e}")
         return [], []
     
+    print(f"Debug - Successfully processed {len(stats)} records from {filename}")
     return timestamps, stats
 
 @app.route('/stats')
