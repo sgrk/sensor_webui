@@ -294,7 +294,6 @@ HTML_TEMPLATE = """
                 ctx.fillRect(x - candleWidth/2, boxTop, candleWidth, boxHeight);
             });
         }
-        }
 
         async function fetchData() {
             try {
