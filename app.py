@@ -45,12 +45,13 @@ def save_statistics(stats):
         return
     
     try:
-        # ./dataディレクトリを使用
-        data_dir = './data'
+        # 絶対パスを使用して./dataディレクトリを指定
+        data_dir = os.path.abspath('./data')
         # ディレクトリが存在しない場合は作成
         if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
+            os.makedirs(data_dir, exist_ok=True)
             print(f"Debug - Created directory: {data_dir}")
+        
         reading_type = stats.pop('type')  # Remove type from stats before saving
         filename = os.path.join(data_dir, f'{reading_type}_stats.csv')
         file_exists = os.path.exists(filename)
@@ -59,6 +60,9 @@ def save_statistics(stats):
         print(stats)
         
         try:
+            # ディレクトリが確実に存在することを再確認
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            
             # ファイルを作成/追記モードでオープン
             with open(filename, 'a', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
@@ -77,8 +81,10 @@ def save_statistics(stats):
                 
         except IOError as e:
             print(f"Error writing to file {filename}: {e}")
-            # 代替として./dataディレクトリに保存を試みる
-            alt_filename = os.path.join('./data', f'{reading_type}_stats.csv')
+            # 代替として一時ディレクトリに保存を試みる
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            alt_filename = os.path.join(temp_dir, f'{reading_type}_stats.csv')
             print(f"Debug - Attempting to write to alternative location: {alt_filename}")
             with open(alt_filename, 'a', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
@@ -354,8 +360,9 @@ def read_stats_file(filename, limit=60):
     CSVファイルから統計データを読み込む
     limit: 返す最大レコード数（デフォルト1時間分）
     """
-    # ./dataディレクトリを使用
-    filepath = os.path.join('./data', filename)
+    # 絶対パスを使用して./dataディレクトリを指定
+    data_dir = os.path.abspath('./data')
+    filepath = os.path.join(data_dir, filename)
     if not os.path.exists(filepath):
         print(f"Debug - File does not exist: {filepath}")
         return [], []
@@ -434,8 +441,6 @@ def get_stats():
             'stats': co2_stats
         }
     })
-
-# この関数は削除（上部に正しいバージョンが既にある）
 
 def mqtt_listener():
     def on_connect(client, userdata, flags, rc):
