@@ -45,12 +45,21 @@ def save_statistics(stats):
         return
     
     try:
+        # データ保存用のディレクトリを作成
+        data_dir = 'data'
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            print(f"Debug - Created data directory: {data_dir}")
+        
         reading_type = stats.pop('type')  # Remove type from stats before saving
-        filename = f'{reading_type}_stats.csv'
+        filename = os.path.join(data_dir, f'{reading_type}_stats.csv')
         file_exists = os.path.exists(filename)
         
         print(f"Debug - Saving stats to {filename}:")
         print(stats)
+        
+        # ディレクトリのパーミッションを確認
+        os.chmod(data_dir, 0o777)
         
         with open(filename, 'a', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['timestamp', 'average', 'maximum', 'minimum', 'first', 'last'])
@@ -59,6 +68,9 @@ def save_statistics(stats):
                 print(f"Debug - Created new file with headers: {filename}")
             writer.writerow(stats)
             print(f"Debug - Successfully wrote stats to {filename}")
+            
+        # ファイルのパーミッションも設定
+        os.chmod(filename, 0o666)
             
     except Exception as e:
         print(f"Error saving statistics: {e}")
@@ -325,18 +337,19 @@ def read_stats_file(filename, limit=60):
     CSVファイルから統計データを読み込む
     limit: 返す最大レコード数（デフォルト1時間分）
     """
-    if not os.path.exists(filename):
-        print(f"Debug - File does not exist: {filename}")
+    filepath = os.path.join('data', filename)
+    if not os.path.exists(filepath):
+        print(f"Debug - File does not exist: {filepath}")
         return [], []
         
     timestamps = []
     stats = []
     
     try:
-        with open(filename, 'r', newline='') as f:
+        with open(filepath, 'r', newline='') as f:
             # ファイルの内容を確認
             content = f.read()
-            print(f"Debug - File content of {filename}:")
+            print(f"Debug - File content of {filepath}:")
             print(content)
             
             # ファイルポインタを先頭に戻す
