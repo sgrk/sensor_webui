@@ -90,48 +90,16 @@ HTML_TEMPLATE = """
         <canvas id="co2Chart" width="800" height="400"></canvas>
     </div>
     <script>
-        // カスタムチャートタイプの定義
-        Chart.defaults.candlestick = Chart.defaults.bar;
-        Chart.controllers.candlestick = Chart.controllers.bar.extend({
-            draw: function() {
-                var ctx = this.chart.ctx;
-                var elements = this.getMeta().data;
-                elements.forEach(function(element) {
-                    var data = element._model;
-                    var stats = element._stats;
-                    
-                    // 上昇/下落の色を設定
-                    var color = stats.first <= stats.last ? 'blue' : 'red';
-                    
-                    // ひげ（最大値・最小値）を描画
-                    ctx.beginPath();
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 1;
-                    ctx.moveTo(data.x, data.y);
-                    ctx.lineTo(data.x, stats.minY);
-                    ctx.moveTo(data.x, data.base);
-                    ctx.lineTo(data.x, stats.maxY);
-                    ctx.stroke();
-                    
-                    // 箱（first-last）を描画
-                    var boxWidth = element._view.width;
-                    var boxY = Math.min(stats.firstY, stats.lastY);
-                    var boxHeight = Math.abs(stats.firstY - stats.lastY);
-                    
-                    ctx.fillStyle = color;
-                    ctx.fillRect(data.x - boxWidth/2, boxY, boxWidth, boxHeight || 1);
-                });
-            }
-        });
-
-        function createCandlestickChart(ctx, label, unit) {
+        function createStatChart(ctx, label, unit) {
             return new Chart(ctx, {
-                type: 'candlestick',
+                type: 'bar',
                 data: {
                     labels: [],
                     datasets: [{
                         label: label,
                         data: [],
+                        borderWidth: 1,
+                        borderColor: 'rgba(0,0,0,0)',
                         backgroundColor: 'rgba(0,0,0,0)'
                     }]
                 },
@@ -146,9 +114,7 @@ HTML_TEMPLATE = """
                             display: true,
                             title: { display: true, text: unit }
                         }
-                    },
-                    parsing: false,
-                    animation: false
+                    }
                 }
             });
         }
@@ -156,45 +122,64 @@ HTML_TEMPLATE = """
         const tempCtx = document.getElementById('tempChart').getContext('2d');
         const co2Ctx = document.getElementById('co2Chart').getContext('2d');
         
-        const tempChart = createCandlestickChart(tempCtx, 'Temperature', '°C');
-        const co2Chart = createCandlestickChart(co2Ctx, 'CO2', 'ppm');
+        const tempChart = createStatChart(tempCtx, 'Temperature', '°C');
+        const co2Chart = createStatChart(co2Ctx, 'CO2', 'ppm');
 
-        function processStats(stats, scale) {
-            if (!stats || !stats.length) return [];
+        function drawCandlestick(ctx, x, y, width, stats, isUp) {
+            const color = isUp ? 'blue' : 'red';
             
-            return stats.map(stat => {
-                const scaleY = scale.getPixelForValue.bind(scale);
-                return {
-                    _stats: {
-                        first: stat.first,
-                        last: stat.last,
-                        min: stat.minimum,
-                        max: stat.maximum,
-                        firstY: scaleY(stat.first),
-                        lastY: scaleY(stat.last),
-                        minY: scaleY(stat.minimum),
-                        maxY: scaleY(stat.maximum)
-                    },
-                    y: Math.min(stat.first, stat.last),
-                    base: Math.max(stat.first, stat.last)
-                };
+            // ひげ（最小値から最大値）を描画
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.moveTo(x, stats.minimum);
+            ctx.lineTo(x, stats.maximum);
+            ctx.stroke();
+            
+            // 箱（first-last）を描画
+            const boxY = Math.min(stats.first, stats.last);
+            const boxHeight = Math.abs(stats.last - stats.first);
+            
+            ctx.fillStyle = color;
+            ctx.fillRect(x - width/2, boxY, width, Math.max(boxHeight, 1));
+        }
+
+        function updateChart(chart, data) {
+            if (!data || !data.timestamps || !data.stats || data.timestamps.length === 0) {
+                return;
+            }
+
+            chart.data.labels = data.timestamps;
+            chart.update();
+
+            const ctx = chart.ctx;
+            const scale = chart.scales.y;
+            const meta = chart.getDatasetMeta(0);
+
+            data.stats.forEach((stat, i) => {
+                const x = meta.data[i].x;
+                const width = meta.data[i].width;
+                const isUp = stat.first <= stat.last;
+                drawCandlestick(ctx, x, scale, width, stat, isUp);
             });
         }
 
         async function fetchData() {
-            const res = await fetch('/stats');
-            const json = await res.json();
-            
-            tempChart.data.labels = json.temperature.timestamps;
-            tempChart.data.datasets[0].data = processStats(json.temperature.stats, tempChart.scales.y);
-            tempChart.update();
-            
-            co2Chart.data.labels = json.co2.timestamps;
-            co2Chart.data.datasets[0].data = processStats(json.co2.stats, co2Chart.scales.y);
-            co2Chart.update();
+            try {
+                const res = await fetch('/stats');
+                const json = await res.json();
+                
+                updateChart(tempChart, json.temperature);
+                updateChart(co2Chart, json.co2);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
         }
 
-        setInterval(fetchData, 10000);  // 10秒ごとに更新
+        // 初回データ取得
+        fetchData();
+        // 10秒ごとに更新
+        setInterval(fetchData, 10000);
     </script>
 </body>
 </html>
@@ -215,19 +200,26 @@ def read_stats_file(filename, limit=60):
     timestamps = []
     stats = []
     
-    with open(filename, 'r', newline='') as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)[-limit:]  # 最新のN件を取得
-        
-        for row in rows:
-            timestamps.append(row['timestamp'])
-            stats.append({
-                'minimum': float(row['minimum']),
-                'maximum': float(row['maximum']),
-                'first': float(row['first']),
-                'last': float(row['last']),
-                'average': float(row['average'])
-            })
+    try:
+        with open(filename, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)[-limit:]  # 最新のN件を取得
+            
+            for row in rows:
+                # タイムスタンプを時:分の形式に変換
+                dt = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S')
+                timestamps.append(dt.strftime('%H:%M'))
+                
+                stats.append({
+                    'minimum': float(row['minimum']),
+                    'maximum': float(row['maximum']),
+                    'first': float(row['first']),
+                    'last': float(row['last']),
+                    'average': float(row['average'])
+                })
+    except Exception as e:
+        print(f"Error reading stats file {filename}: {e}")
+        return [], []
     
     return timestamps, stats
 
