@@ -126,13 +126,19 @@ def read_csv_data(filename, limit=None):
                     timestamps.append(dt.strftime('%H:%M'))
                     
                     # Convert string values to float
-                    data_list.append({
+                    data_dict = {
                         'minimum': float(row['minimum']),
                         'maximum': float(row['maximum']),
                         'first': float(row['first']),
                         'last': float(row['last']),
                         'average': float(row['average'])
-                    })
+                    }
+                    
+                    # Add count if available (for backward compatibility)
+                    if 'count' in row:
+                        data_dict['count'] = int(row['count'])
+                    
+                    data_list.append(data_dict)
                 except Exception as e:
                     logger.debug(f"Error processing row: {row}")
                     logger.debug(f"Error details: {e}")

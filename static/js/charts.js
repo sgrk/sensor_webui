@@ -85,7 +85,8 @@ function createStatChart(ctx, label, unit) {
                                 `Last: ${stat.last} ${unit}`,
                                 `Min: ${stat.minimum} ${unit}`,
                                 `Max: ${stat.maximum} ${unit}`,
-                                `Avg: ${stat.y} ${unit}`
+                                `Avg: ${stat.y} ${unit}`,
+                                stat.count ? `Count: ${stat.count} samples` : ''
                             ];
                         }
                     }
@@ -134,7 +135,8 @@ function updateChart(chart, data) {
             minimum: stat.minimum,
             maximum: stat.maximum,
             first: stat.first,
-            last: stat.last
+            last: stat.last,
+            count: stat.count
         })),
         borderColor: 'rgba(0,0,0,0)',
         backgroundColor: 'rgba(0,0,0,0)'
