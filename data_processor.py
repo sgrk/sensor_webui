@@ -157,13 +157,14 @@ def check_and_save_minute_data():
     
     return False
 
-def get_statistics(reading_type, limit=None):
+def get_statistics(reading_type, limit=None, interval='1min'):
     """
-    Get statistics for a specific reading type
+    Get statistics for a specific reading type with specified time interval
     
     Args:
         reading_type (str): Type of reading to get statistics for (e.g., 'temperature', 'co2')
         limit (int): Maximum number of records to return
+        interval (str): Time interval for data aggregation ('1min', '10min', '1hour', '1day')
         
     Returns:
         tuple: (timestamps, stats) where timestamps is a list of formatted timestamps
@@ -172,5 +173,57 @@ def get_statistics(reading_type, limit=None):
     # Use config value if limit is not specified
     if limit is None:
         limit = config.STATS_LIMIT
+    
     filename = f'{reading_type}_stats.csv'
-    return utils.read_csv_data(filename, limit)
+    timestamps, stats = utils.read_csv_data(filename)
+    
+    if not timestamps or not stats:
+        return [], []
+    
+    # Convert timestamps to datetime objects
+    datetimes = [datetime.strptime(ts, '%Y-%m-%d %H:%M:00') for ts in timestamps]
+    
+    # Group data by interval
+    grouped_data = {}
+    for dt, stat in zip(datetimes, stats):
+        interval_key = None
+        if interval == '1min':
+            interval_key = dt.strftime('%Y-%m-%d %H:%M:00')
+        elif interval == '10min':
+            minute = (dt.minute // 10) * 10
+            interval_key = dt.strftime(f'%Y-%m-%d %H:{minute:02d}:00')
+        elif interval == '1hour':
+            interval_key = dt.strftime('%Y-%m-%d %H:00:00')
+        elif interval == '1day':
+            interval_key = dt.strftime('%Y-%m-%d 00:00:00')
+        
+        if interval_key not in grouped_data:
+            grouped_data[interval_key] = []
+        grouped_data[interval_key].append(stat)
+    
+    # Calculate aggregated statistics for each interval
+    aggregated_stats = []
+    aggregated_timestamps = []
+    
+    for timestamp in sorted(grouped_data.keys()):
+        interval_stats = grouped_data[timestamp]
+        
+        # Aggregate statistics
+        aggregated_stat = {
+            'minimum': min(s['minimum'] for s in interval_stats),
+            'maximum': max(s['maximum'] for s in interval_stats),
+            'first': interval_stats[0]['first'],
+            'last': interval_stats[-1]['last'],
+            'average': sum(s['average'] * s['count'] for s in interval_stats) / sum(s['count'] for s in interval_stats),
+            'count': sum(s['count'] for s in interval_stats)
+        }
+        
+        aggregated_stats.append(aggregated_stat)
+        aggregated_timestamps.append(timestamp)
+    
+    # Apply limit after aggregation
+    if limit:
+        aggregated_timestamps = aggregated_timestamps[-limit:]
+        aggregated_stats = aggregated_stats[-limit:]
+    
+    return aggregated_timestamps, aggregated_stats

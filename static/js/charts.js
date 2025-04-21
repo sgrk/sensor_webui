@@ -149,14 +149,36 @@ function updateChart(chart, data) {
     chart.update('none');
 }
 
+// Global variable to store current interval
+let currentInterval = '1min';
+
+// Function to change interval
+function changeInterval(interval) {
+    currentInterval = interval;
+    fetchData();
+}
+
 // Fetch data from API
 async function fetchData() {
     try {
-        const res = await fetch('/stats');
+        const res = await fetch(`/stats?interval=${currentInterval}`);
         const json = await res.json();
         
         updateChart(tempChart, json.temperature);
         updateChart(co2Chart, json.co2);
+        
+        // Update chart titles with interval information
+        const intervalText = {
+            '1min': '1 Minute',
+            '10min': '10 Minutes',
+            '1hour': '1 Hour',
+            '1day': '1 Day'
+        }[currentInterval];
+        
+        document.querySelector('#tempChart').closest('.chart-container').querySelector('h2')
+            .textContent = `Temperature Statistics (°C) - ${intervalText} Intervals`;
+        document.querySelector('#co2Chart').closest('.chart-container').querySelector('h2')
+            .textContent = `CO2 Statistics (ppm) - ${intervalText} Intervals`;
     } catch (error) {
         console.error('Error fetching data:', error);
     }
@@ -164,5 +186,25 @@ async function fetchData() {
 
 // Initial data fetch
 fetchData();
-// Update every 10 seconds
-setInterval(fetchData, 10000);
+
+// Update interval based on data frequency
+const updateIntervals = {
+    '1min': 10000,    // 10 seconds
+    '10min': 30000,   // 30 seconds
+    '1hour': 60000,   // 1 minute
+    '1day': 300000    // 5 minutes
+};
+
+// Function to manage update interval
+function startUpdateInterval() {
+    const interval = updateIntervals[currentInterval];
+    return setInterval(fetchData, interval);
+}
+
+let updateTimer = startUpdateInterval();
+
+// Update timer when interval changes
+document.getElementById('interval').addEventListener('change', function() {
+    clearInterval(updateTimer);
+    updateTimer = startUpdateInterval();
+});

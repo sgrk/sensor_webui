@@ -26,21 +26,33 @@ def index():
 def get_stats():
     """
     API endpoint to get sensor statistics
+    
+    Query parameters:
+    - interval: Time interval for data aggregation ('1min', '10min', '1hour', '1day')
     """
+    from flask import request
+    
+    # Get interval from query parameters, default to 1min
+    interval = request.args.get('interval', '1min')
+    if interval not in ['1min', '10min', '1hour', '1day']:
+        interval = '1min'
+    
     # Get temperature data
-    temp_timestamps, temp_stats = data_processor.get_statistics('temperature')
+    temp_timestamps, temp_stats = data_processor.get_statistics('temperature', interval=interval)
     
     # Get CO2 data
-    co2_timestamps, co2_stats = data_processor.get_statistics('co2')
+    co2_timestamps, co2_stats = data_processor.get_statistics('co2', interval=interval)
     
     return jsonify({
         'temperature': {
             'timestamps': temp_timestamps,
-            'stats': temp_stats
+            'stats': temp_stats,
+            'interval': interval
         },
         'co2': {
             'timestamps': co2_timestamps,
-            'stats': co2_stats
+            'stats': co2_stats,
+            'interval': interval
         }
     })
 
