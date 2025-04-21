@@ -1,3 +1,40 @@
+// Custom plugin for candlestick rendering
+const candlestickPlugin = {
+    id: 'candlestick',
+    afterDatasetsDraw: function(chart, args, options) {
+        const ctx = chart.ctx;
+        const yScale = chart.scales.y;
+        const xScale = chart.scales.x;
+        const dataset = chart.data.datasets[0];
+
+        dataset.data.forEach((stat, i) => {
+            const x = xScale.getPixelForValue(i);
+            const width = xScale.getPixelForValue(1) - xScale.getPixelForValue(0);
+            const candleWidth = Math.min(width * 0.8, 15);  // Limit candle width
+
+            // Determine color based on first/last values
+            const color = stat.first <= stat.last ? 'blue' : 'red';
+
+            // Draw whiskers (min to max)
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.moveTo(x, yScale.getPixelForValue(stat.minimum));
+            ctx.lineTo(x, yScale.getPixelForValue(stat.maximum));
+            ctx.stroke();
+
+            // Draw box (first to last)
+            const firstY = yScale.getPixelForValue(stat.first);
+            const lastY = yScale.getPixelForValue(stat.last);
+            const boxTop = Math.min(firstY, lastY);
+            const boxHeight = Math.abs(firstY - lastY) || 1;
+
+            ctx.fillStyle = color;
+            ctx.fillRect(x - candleWidth/2, boxTop, candleWidth, boxHeight);
+        });
+    }
+};
+
 // Initialize charts
 function createStatChart(ctx, label, unit) {
     return new Chart(ctx, {
@@ -8,8 +45,8 @@ function createStatChart(ctx, label, unit) {
                 label: label,
                 data: [],
                 borderWidth: 1,
-                borderColor: 'rgba(0,0,0,0)',
-                backgroundColor: 'rgba(0,0,0,0)'
+                borderColor: 'transparent',
+                backgroundColor: 'transparent'
             }]
         },
         options: {
@@ -48,7 +85,8 @@ function createStatChart(ctx, label, unit) {
                                 `Last: ${stat.last} ${unit}`,
                                 `Min: ${stat.minimum} ${unit}`,
                                 `Max: ${stat.maximum} ${unit}`,
-                                `Avg: ${stat.y} ${unit}`
+                                `Avg: ${stat.y} ${unit}`,
+                                stat.count ? `Count: ${stat.count} samples` : ''
                             ];
                         }
                     }
@@ -61,6 +99,9 @@ function createStatChart(ctx, label, unit) {
 // Initialize chart contexts
 const tempCtx = document.getElementById('tempChart').getContext('2d');
 const co2Ctx = document.getElementById('co2Chart').getContext('2d');
+
+// Register custom plugin
+Chart.register(candlestickPlugin);
 
 // Create charts
 const tempChart = createStatChart(tempCtx, 'Temperature', '°C');
@@ -94,7 +135,8 @@ function updateChart(chart, data) {
             minimum: stat.minimum,
             maximum: stat.maximum,
             first: stat.first,
-            last: stat.last
+            last: stat.last,
+            count: stat.count
         })),
         borderColor: 'rgba(0,0,0,0)',
         backgroundColor: 'rgba(0,0,0,0)'
@@ -105,37 +147,6 @@ function updateChart(chart, data) {
 
     // Update without animation
     chart.update('none');
-
-    // Custom drawing
-    const ctx = chart.ctx;
-    const yScale = chart.scales.y;
-    const xScale = chart.scales.x;
-
-    data.stats.forEach((stat, i) => {
-        const x = xScale.getPixelForValue(i);
-        const width = xScale.getPixelForValue(1) - xScale.getPixelForValue(0);
-        const candleWidth = Math.min(width * 0.8, 15);  // Limit candle width
-
-        // Determine color based on first/last values
-        const color = stat.first <= stat.last ? 'blue' : 'red';
-
-        // Draw whiskers (min to max)
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.moveTo(x, yScale.getPixelForValue(stat.minimum));
-        ctx.lineTo(x, yScale.getPixelForValue(stat.maximum));
-        ctx.stroke();
-
-        // Draw box (first to last)
-        const firstY = yScale.getPixelForValue(stat.first);
-        const lastY = yScale.getPixelForValue(stat.last);
-        const boxTop = Math.min(firstY, lastY);
-        const boxHeight = Math.abs(firstY - lastY) || 1;
-
-        ctx.fillStyle = color;
-        ctx.fillRect(x - candleWidth/2, boxTop, candleWidth, boxHeight);
-    });
 }
 
 // Fetch data from API

@@ -44,5 +44,12 @@ echo "Installing dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# config.pyが存在しない場合、config.py.sampleをコピー
+if [ ! -f "config.py" ]; then
+    echo "config.py not found. Creating from config.py.sample..."
+    cp config.py.sample config.py
+    echo "Created config.py from sample file."
+fi
+
 echo "Setup completed successfully!"
 echo "To activate the virtual environment, run: source venv/bin/activate"

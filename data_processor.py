@@ -46,6 +46,7 @@ def calculate_statistics(data_list, reading_type):
         'minimum': min(values),
         'first': values[0],
         'last': values[-1],
+        'count': len(values),  # Add count of elements used in calculation
         'type': reading_type
     }
 
@@ -69,7 +70,7 @@ def save_statistics(stats):
         filename = f'{reading_type}_stats.csv'
         
         # Define CSV field names
-        fieldnames = ['timestamp', 'average', 'maximum', 'minimum', 'first', 'last']
+        fieldnames = ['timestamp', 'average', 'maximum', 'minimum', 'first', 'last', 'count']
         
         # Save to CSV
         return utils.save_to_csv(filename, stats, fieldnames)
