@@ -126,7 +126,14 @@ function updateChart(chart, data) {
     const padding = (maxValue - minValue) * 0.1;
 
     // Update chart data
-    chart.data.labels = data.timestamps;
+    // Format timestamps to show only time for better readability
+    chart.data.labels = data.timestamps.map(ts => {
+        // If timestamp is in full format (YYYY-MM-DD HH:MM:00), extract just the time
+        if (ts.includes(' ')) {
+            return ts.split(' ')[1].substring(0, 5); // Extract HH:MM
+        }
+        return ts; // Already in short format
+    });
     chart.data.datasets = [{
         label: chart.canvas.id === 'tempChart' ? 'Temperature' : 'CO2',
         data: data.stats.map((stat, i) => ({

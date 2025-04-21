@@ -121,9 +121,9 @@ def read_csv_data(filename, limit=None):
             
             for row in rows:
                 try:
-                    # Convert timestamp to HH:MM format
+                    # Parse the timestamp and keep the full format
                     dt = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:00')
-                    timestamps.append(dt.strftime('%H:%M'))
+                    timestamps.append(row['timestamp'])  # Keep the original timestamp format
                     
                     # Convert string values to float
                     data_dict = {
