@@ -221,9 +221,15 @@ def get_statistics(reading_type, limit=None, interval='1min'):
         aggregated_stats.append(aggregated_stat)
         aggregated_timestamps.append(timestamp)
     
-    # Apply limit after aggregation
+    # Apply limit to maintain consistent number of data points
     if limit:
-        aggregated_timestamps = aggregated_timestamps[-limit:]
-        aggregated_stats = aggregated_stats[-limit:]
+        # Calculate how many points we need per interval to meet the limit
+        total_points = len(aggregated_timestamps)
+        if total_points > limit:
+            # Calculate step size to evenly distribute points
+            step = total_points // limit
+            # Select points with even distribution
+            aggregated_timestamps = aggregated_timestamps[::step][:limit]
+            aggregated_stats = aggregated_stats[::step][:limit]
     
     return aggregated_timestamps, aggregated_stats
