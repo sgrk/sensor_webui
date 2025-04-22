@@ -221,15 +221,18 @@ def get_statistics(reading_type, limit=None, interval='1min'):
         aggregated_stats.append(aggregated_stat)
         aggregated_timestamps.append(timestamp)
     
-    # Apply limit to maintain consistent number of data points
+    # Adjust limit based on interval to maintain consistent time range ratio
     if limit:
-        # Calculate how many points we need per interval to meet the limit
-        total_points = len(aggregated_timestamps)
-        if total_points > limit:
-            # Calculate step size to evenly distribute points
-            step = total_points // limit
-            # Select points with even distribution
-            aggregated_timestamps = aggregated_timestamps[::step][:limit]
-            aggregated_stats = aggregated_stats[::step][:limit]
+        adjusted_limit = limit
+        if interval == '10min':
+            adjusted_limit = limit * 10  # 10x more time range for 10min interval
+        elif interval == '1hour':
+            adjusted_limit = limit * 60  # 60x more time range for 1hour interval
+        elif interval == '1day':
+            adjusted_limit = limit * 1440  # 1440x (24h * 60min) more time range for 1day interval
+    
+    # Return the most recent data points up to the adjusted limit
+    aggregated_timestamps = aggregated_timestamps[-adjusted_limit:]
+    aggregated_stats = aggregated_stats[-adjusted_limit:]
     
     return aggregated_timestamps, aggregated_stats
