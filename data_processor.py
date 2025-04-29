@@ -170,9 +170,11 @@ def get_statistics(reading_type, limit=None, interval='1min'):
         tuple: (timestamps, stats) where timestamps is a list of formatted timestamps
                and stats is a list of dictionaries containing the statistics
     """
-    # Use config value if limit is not specified
-    if limit is None:
-        limit = config.STATS_LIMIT
+    # Read 24 hours of data by default
+    read_limit = 24 * 60  # 1440 points (24 hours * 60 minutes)
+    
+    # Use config value for display limit if not specified
+    display_limit = config.STATS_LIMIT if limit is None else limit
     
     filename = f'{reading_type}_stats.csv'
     timestamps, stats = utils.read_csv_data(filename)
@@ -222,20 +224,20 @@ def get_statistics(reading_type, limit=None, interval='1min'):
         aggregated_timestamps.append(timestamp)
     
     # Calculate the number of points needed to maintain consistent time range
-    if limit:
-        # Base time range is 60 points at 1min interval = 60 minutes
+    if display_limit:
+        # Base time range is determined by STATS_LIMIT at the specified interval
         if interval == '1min':
-            points_needed = limit  # 60 points = 60 minutes
+            points_needed = display_limit  # e.g., 60 points = 60 minutes
         elif interval == '10min':
-            points_needed = limit  # 60 points = 10 hours (60 * 10 minutes)
+            points_needed = display_limit  # e.g., 60 points = 10 hours (60 * 10 minutes)
         elif interval == '1hour':
-            points_needed = limit  # 60 points = 60 hours
+            points_needed = display_limit  # e.g., 60 points = 60 hours
         elif interval == '1day':
-            points_needed = limit  # 60 points = 60 days
+            points_needed = display_limit  # e.g., 60 points = 60 days
         else:
-            points_needed = limit
+            points_needed = display_limit
             
-        # Return the most recent data points
+        # Return the most recent data points based on display_limit
         aggregated_timestamps = aggregated_timestamps[-points_needed:]
         aggregated_stats = aggregated_stats[-points_needed:]
     

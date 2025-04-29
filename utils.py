@@ -93,9 +93,10 @@ def read_csv_data(filename, limit=None):
         tuple: (timestamps, data) where timestamps is a list of formatted timestamps
                and data is a list of dictionaries containing the data
     """
-    # Use config value if limit is not specified
+    # If limit is not specified, read 24 hours worth of data points
     if limit is None:
-        limit = config.STATS_LIMIT
+        # For 1-minute intervals, we need 24 * 60 = 1440 points for 24 hours
+        limit = 24 * 60  # 1440 points
     data_dir = ensure_data_directory()
     filepath = os.path.join(data_dir, filename)
     
